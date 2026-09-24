@@ -11,7 +11,8 @@
     "start": "node --no-warnings=ExperimentalWarning server.js",
     "dev": "node --no-warnings=ExperimentalWarning --watch server.js",
     "reset-db": "node --no-warnings=ExperimentalWarning scripts/reset-db.js",
-    "test": "node --no-warnings=ExperimentalWarning --test test/*.test.js"
+    "test": "node --no-warnings=ExperimentalWarning --test test/*.test.js",
+    "reset-admin": "node --no-warnings=ExperimentalWarning scripts/reset-admin.js"
   },
   "license": "UNLICENSED",
   "dependencies": {

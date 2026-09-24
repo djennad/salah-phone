@@ -37,6 +37,39 @@
   }
   const errText = (e) => ERR[e.code] || `Erreur (${e.code || e.message})`;
 
+  // Photos prises avec un téléphone : souvent 3000×4000 px et plusieurs Mo.
+  // On les réduit dans le navigateur (1200 px max, JPEG) avant l'envoi : upload rapide,
+  // pas de refus « 4 Mo max », et un site léger pour les clients en 4G.
+  const MAX_IMG = 1200;
+  async function shrinkImage(file) {
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return file;
+    let src;
+    try {
+      src = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    } catch {
+      return file; // format non décodable : le serveur décidera
+    }
+    const scale = Math.min(1, MAX_IMG / Math.max(src.width, src.height));
+    if (scale === 1 && file.size < 400 * 1024) return file;
+    const c = document.createElement('canvas');
+    c.width = Math.round(src.width * scale);
+    c.height = Math.round(src.height * scale);
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.drawImage(src, 0, 0, c.width, c.height);
+    const blob = await new Promise((resolve) => c.toBlob(resolve, 'image/jpeg', 0.85));
+    return blob ? new File([blob], 'photo.jpg', { type: 'image/jpeg' }) : file;
+  }
+  async function uploadImage(file) {
+    toast('Envoi de la photo…');
+    const fd = new FormData();
+    fd.append('image', await shrinkImage(file));
+    const r = await api('POST', '/api/admin/upload', fd, true);
+    toast('Photo ajoutée ✓');
+    return r.url;
+  }
+
   let tt;
   function toast(msg, err) {
     const el = $('#toast');
@@ -287,11 +320,8 @@
     $('#imgFile', box).onchange = async (e) => {
       const file = e.target.files[0];
       if (!file) return;
-      const fd = new FormData();
-      fd.append('image', file);
       try {
-        const r = await api('POST', '/api/admin/upload', fd, true);
-        f.image.value = r.url;
+        f.image.value = await uploadImage(file);
         f.image.oninput();
       } catch (err) { toast(errText(err), true); }
     };
@@ -379,9 +409,12 @@
     const f = $('#mf', box);
     $('[data-close]', box).onclick = closeModal;
     $('#mFile', box).onchange = async (e) => {
-      const fd = new FormData();
-      fd.append('image', e.target.files[0]);
-      try { const r = await api('POST', '/api/admin/upload', fd, true); f.image.value = r.url; $('#mPrev', box).innerHTML = `<img src="${esc(r.url)}" alt="">`; } catch (err) { toast(errText(err), true); }
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        f.image.value = await uploadImage(file);
+        $('#mPrev', box).innerHTML = `<img src="${esc(f.image.value)}" alt="">`;
+      } catch (err) { toast(errText(err), true); }
     };
     if (m) $('#delM', box).onclick = async () => {
       if (!confirm('Supprimer ce modèle ?')) return;

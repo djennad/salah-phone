@@ -16,7 +16,6 @@ const app = createApp(db, {
   uploadDir: process.env.UPLOAD_DIR || path.join(__dirname, 'uploads'),
   secureCookie: process.env.SECURE_COOKIE === '1',
   trustProxy: process.env.TRUST_PROXY === '1',
-  dev: process.env.NODE_ENV !== 'production',
 });
 
 app.listen(PORT, () => console.log(`[salah-phone] http://localhost:${PORT}  —  admin : http://localhost:${PORT}/admin`));

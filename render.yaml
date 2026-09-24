@@ -1,22 +1,35 @@
-# Déploiement « Blueprint » sur Render.com (plan payant requis pour le disque persistant).
+# Déploiement « Blueprint » sur Render.com
+# Le disque persistant (/var/data) exige un plan payant (Starter ou plus) :
+# il garde la base de données et les images entre les redémarrages.
 services:
   - type: web
     name: salah-phone
-    runtime: docker
+    runtime: node
     plan: starter
+    region: frankfurt
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
     healthCheckPath: /api/health
     envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: DB_FILE
+        value: /var/data/salah-phone.db
+      - key: UPLOAD_DIR
+        value: /var/data/uploads
       - key: TRUST_PROXY
         value: "1"
       - key: SECURE_COOKIE
         value: "1"
       - key: SEED_DEMO
-        value: "0"
+        value: "1"
       - key: ADMIN_EMAIL
         sync: false
       - key: ADMIN_PASSWORD
         sync: false
     disk:
       name: data
-      mountPath: /data
+      mountPath: /var/data
       sizeGB: 1

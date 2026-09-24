@@ -24,7 +24,7 @@ services:
       - key: SECURE_COOKIE
         value: "1"
       - key: SEED_DEMO
-        value: "1"
+        value: "0"
       - key: ADMIN_EMAIL
         sync: false
       - key: ADMIN_PASSWORD

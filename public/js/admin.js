@@ -535,6 +535,13 @@
         ${f('announcement_fr', 'Texte en français')}
         <button class="btn btn-navy">Enregistrer</button>
       </form>
+      <div class="card pad form" style="max-width:760px;margin-top:16px;border-color:var(--red)">
+        <h2 class="section-title" style="color:var(--red)">Vider le catalogue</h2>
+        <p class="muted" style="margin:0">Supprime <b>tous</b> les produits, catégories, marques et modèles. Les commandes, clients,
+          frais de livraison et paramètres sont conservés. Cette action est irréversible.</p>
+        <div class="field"><label>Tapez <b>SUPPRIMER</b> pour confirmer</label><input class="input" id="wipeConfirm" autocomplete="off"></div>
+        <button class="btn" id="wipeBtn" style="background:var(--red);justify-self:start" disabled>Vider le catalogue</button>
+      </div>
       <form class="card pad form" id="pwf" style="max-width:760px;margin-top:16px">
         <h2 class="section-title">Mot de passe administrateur</h2>
         <div class="grid-2">
@@ -547,6 +554,18 @@
       e.preventDefault();
       await api('PUT', '/api/admin/settings', Object.fromEntries(new FormData(e.target)));
       toast('Paramètres enregistrés');
+    };
+    $('#wipeConfirm').oninput = (e) => { $('#wipeBtn').disabled = e.target.value.trim() !== 'SUPPRIMER'; };
+    $('#wipeBtn').onclick = async () => {
+      if (!confirm('Supprimer définitivement tout le catalogue ?')) return;
+      try {
+        const r = await api('POST', '/api/admin/catalog/wipe', { confirm: 'SUPPRIMER' });
+        categories = [];
+        brandsCache = null;
+        $('#wipeConfirm').value = '';
+        $('#wipeBtn').disabled = true;
+        toast(`Supprimé : ${r.deleted.products} produits, ${r.deleted.categories} catégories, ${r.deleted.brands} marques, ${r.deleted.models} modèles`);
+      } catch (err) { toast(errText(err), true); }
     };
     $('#pwf').onsubmit = async (e) => {
       e.preventDefault();

@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const os = require('node:os');
 const fs = require('node:fs');
 const path = require('node:path');
+const http = require('node:http');
 const { openDb, ensureBaseData, seedDemo } = require('../lib/db');
 const { createApp } = require('../lib/app');
 
@@ -162,4 +163,21 @@ test('existing databases with products are not re-seeded', () => {
   fresh.prepare("DELETE FROM settings WHERE key = 'demo_seeded'").run();
   assert.equal(seedDemo(fresh), false);
   assert.ok(fresh.prepare("SELECT 1 FROM settings WHERE key = 'demo_seeded'").get());
+});
+
+test('pages and scripts are revalidated so updates show up immediately', async () => {
+  for (const url of ['/', '/admin', '/js/admin.js', '/js/app.js', '/css/style.css']) {
+    const res = await fetch(base + url);
+    assert.equal(res.status, 200, url);
+    assert.equal(res.headers.get('cache-control'), 'no-cache', url);
+    const etag = res.headers.get('etag');
+    if (url.startsWith('/js') || url.startsWith('/css')) {
+      assert.ok(etag, url);
+      // node:http plutôt que fetch : fetch ajoute ses propres en-têtes de cache à une requête conditionnelle
+      const status = await new Promise((resolve, reject) => {
+        http.get(base + url, { headers: { 'If-None-Match': etag } }, (r) => { r.resume(); resolve(r.statusCode); }).on('error', reject);
+      });
+      assert.equal(status, 304, url);
+    }
+  }
 });

@@ -35,6 +35,8 @@ npm test
 | `TRUST_PROXY` | `1` خلف Nginx/Proxy | — |
 | `NODE_ENV` | `production` لتفعيل التخزين المؤقت (cache) | — |
 
+> **للرفع على الإنترنت** (VPS أو Render): انظر [DEPLOY.md](DEPLOY.md).
+
 المنتجات التجريبية تُضاف عند أول تشغيل فقط. لحذفها والبدء من جديد: `npm run reset-db`.
 
 ## البنية

@@ -1,0 +1,22 @@
+# Déploiement « Blueprint » sur Render.com (plan payant requis pour le disque persistant).
+services:
+  - type: web
+    name: salah-phone
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/health
+    envVars:
+      - key: TRUST_PROXY
+        value: "1"
+      - key: SECURE_COOKIE
+        value: "1"
+      - key: SEED_DEMO
+        value: "0"
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1

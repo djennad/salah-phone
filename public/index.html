@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Salah Phone — قطع غيار الهواتف</title>
+  <meta name="description" content="Salah Phone : pièces de rechange pour téléphones (afficheur, batterie, connecteur...). Livraison 58 wilayas. متجر قطع غيار الهواتف مع التوصيل.">
+  <meta name="theme-color" content="#0b2a63">
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="topbar" id="topbar"></div>
+
+  <header class="header">
+    <div class="header-row container">
+      <button class="icon-btn" id="menuBtn" aria-label="Menu"></button>
+      <a href="#/" class="logo" aria-label="Salah Phone"><img src="/img/logo.svg" alt="Salah Phone" width="180" height="40"></a>
+      <a href="#/request" class="btn btn-outline btn-sm req-btn" id="reqBtn"></a>
+      <div class="header-actions">
+        <a href="#/account" class="icon-btn" id="userBtn" aria-label="Compte"></a>
+        <a href="#/cart" class="icon-btn cart-btn" id="cartBtn" aria-label="Panier"><span class="badge" id="cartCount" hidden>0</span></a>
+      </div>
+    </div>
+    <div class="container search-wrap">
+      <form class="search" id="searchForm" role="search" autocomplete="off">
+        <input type="search" id="searchInput" enterkeyhint="search" aria-label="Recherche">
+        <button type="submit" class="search-go" id="searchBtn" aria-label="Rechercher"></button>
+      </form>
+      <div class="suggest" id="suggest" hidden></div>
+    </div>
+  </header>
+
+  <aside class="drawer" id="drawer" aria-hidden="true">
+    <div class="drawer-panel">
+      <div class="drawer-head">
+        <img src="/img/logo.svg" alt="Salah Phone" height="40">
+        <button class="icon-btn" id="drawerClose" aria-label="Fermer"></button>
+      </div>
+      <div class="lang-switch" id="langSwitch">
+        <button data-lang="ar">العربية</button>
+        <button data-lang="fr">Français</button>
+      </div>
+      <nav class="drawer-nav" id="drawerNav"></nav>
+    </div>
+  </aside>
+
+  <main id="app" class="container main"></main>
+
+  <footer class="footer" id="footer"></footer>
+
+  <a class="fab-wa" id="waBtn" target="_blank" rel="noopener" aria-label="WhatsApp"></a>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="/js/i18n.js"></script>
+  <script src="/js/icons.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="fr" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Administration — Salah Phone</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body class="admin">
+  <div class="a-layout">
+    <aside class="a-side" id="side">
+      <a href="/" class="a-logo"><img src="/img/logo.svg" alt="Salah Phone"></a>
+      <nav id="aNav"></nav>
+    </aside>
+    <div class="a-main">
+      <header class="a-top">
+        <button class="icon-btn" id="sideBtn" aria-label="Menu"></button>
+        <h1 id="aTitle">Administration</h1>
+        <a href="/" class="btn btn-ghost btn-sm">Voir le site</a>
+      </header>
+      <main id="view" class="a-view"></main>
+    </div>
+  </div>
+  <div class="modal" id="modal" hidden><div class="modal-box" id="modalBox"></div></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="/js/icons.js"></script>
+  <script src="/js/admin.js"></script>
+</body>
+</html>

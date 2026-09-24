@@ -1,0 +1,31 @@
+# Déploiement sur un VPS : le site + Caddy (HTTPS automatique avec Let's Encrypt).
+# 1) copier .env.example vers .env et le remplir   2) docker compose up -d --build
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      TRUST_PROXY: "1"
+      SECURE_COOKIE: "1"
+    volumes:
+      - salah_data:/data
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    env_file: .env
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+volumes:
+  salah_data:
+  caddy_data:
+  caddy_config:

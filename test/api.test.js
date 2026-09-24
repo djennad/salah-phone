@@ -1,0 +1,127 @@
+const { test, before, after } = require('node:test');
+const assert = require('node:assert/strict');
+const os = require('node:os');
+const fs = require('node:fs');
+const path = require('node:path');
+const { openDb, ensureBaseData, seedDemo } = require('../lib/db');
+const { createApp } = require('../lib/app');
+
+let server;
+let base;
+let db;
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-test-'));
+
+before(async () => {
+  db = openDb(':memory:');
+  ensureBaseData(db, { adminEmail: 'admin@test.dz', adminPassword: 'secret123' });
+  seedDemo(db);
+  const app = createApp(db, { uploadDir: tmp });
+  await new Promise((r) => { server = app.listen(0, r); });
+  base = `http://127.0.0.1:${server.address().port}`;
+});
+after(() => { server.close(); fs.rmSync(tmp, { recursive: true, force: true }); });
+
+function client() {
+  let cookie = '';
+  return async (method, url, body, headers = {}) => {
+    const res = await fetch(base + url, {
+      method,
+      headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(cookie ? { Cookie: cookie } : {}), ...headers },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const sc = res.headers.get('set-cookie');
+    if (sc) cookie = sc.split(';')[0];
+    return { status: res.status, body: await res.json().catch(() => null) };
+  };
+}
+
+const profile = (extra) => ({
+  first_name: 'Ali', last_name: 'Test', email: `u${Math.random().toString(36).slice(2)}@test.dz`, password: 'motdepasse',
+  phone: '0550123456', delivery_type: 'home', wilaya: 16, commune: 'Bab Ezzouar', address: 'Cité 1', ...extra,
+});
+
+test('search finds a phone model and its parts', async () => {
+  const c = client();
+  const s = await c('GET', '/api/suggest?q=redmi%209a');
+  assert.equal(s.body.models[0].slug, 'redmi-9a');
+  const compact = await c('GET', '/api/search?q=redmi9a');
+  assert.equal(compact.body.models[0].slug, 'redmi-9a');
+  const m = await c('GET', '/api/models/redmi-9a');
+  assert.ok(m.body.products.length > 5);
+  assert.ok(m.body.products.some((p) => p.name.includes('Redmi 9A / Redmi 9C')));
+});
+
+test('registration validates input', async () => {
+  const c = client();
+  const r = await c('POST', '/api/auth/register', profile({ phone: '123' }));
+  assert.equal(r.status, 400);
+  assert.equal(r.body.error, 'phone_invalid');
+  const r2 = await c('POST', '/api/auth/register', profile({ type: 'repairer' }));
+  assert.equal(r2.body.error, 'shop_required');
+});
+
+test('repairer gets pro prices only after admin approval', async () => {
+  const pro = client();
+  const reg = await pro('POST', '/api/auth/register', profile({ type: 'repairer', shop_name: 'Atelier Ali' }));
+  assert.equal(reg.status, 201);
+  assert.equal(reg.body.user.pro_status, 'pending');
+  const before1 = (await pro('GET', '/api/products/1')).body.product;
+  assert.equal(before1.price, before1.price_public);
+
+  const admin = client();
+  assert.equal((await admin('POST', '/api/auth/login', { email: 'admin@test.dz', password: 'secret123' })).status, 200);
+  assert.equal((await admin('PUT', `/api/admin/users/${reg.body.user.id}`, { pro_status: 'approved' })).status, 200);
+
+  const after1 = (await pro('GET', '/api/products/1')).body.product;
+  assert.ok(after1.price < after1.price_public, 'pro price should be lower');
+});
+
+test('order uses server prices, decrements stock and cancel restocks', async () => {
+  const c = client();
+  await c('POST', '/api/auth/register', profile());
+  const prodBefore = db.prepare('SELECT * FROM products WHERE id = 2').get();
+  const r = await c('POST', '/api/orders', { items: [{ id: 2, qty: 2, price: 1 }] });
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  const o = r.body.order;
+  assert.equal(o.items[0].unit_price, prodBefore.price);
+  assert.equal(o.delivery_fee, db.prepare('SELECT home_fee FROM delivery_fees WHERE wilaya = 16').get().home_fee);
+  assert.equal(o.total, prodBefore.price * 2 + o.delivery_fee);
+  assert.equal(db.prepare('SELECT stock FROM products WHERE id = 2').get().stock, prodBefore.stock - 2);
+
+  const cancel = await c('POST', `/api/me/orders/${o.id}/cancel`, {});
+  assert.equal(cancel.body.order.status, 'cancelled');
+  assert.equal(db.prepare('SELECT stock FROM products WHERE id = 2').get().stock, prodBefore.stock);
+});
+
+test('ordering more than stock fails', async () => {
+  const c = client();
+  await c('POST', '/api/auth/register', profile());
+  const p = db.prepare('SELECT id, stock FROM products WHERE stock > 0 LIMIT 1').get();
+  const r = await c('POST', '/api/orders', { items: [{ id: p.id, qty: p.stock + 1 }] });
+  assert.equal(r.status, 409);
+  assert.equal(db.prepare('SELECT stock FROM products WHERE id = ?').get(p.id).stock, p.stock);
+});
+
+test('orders require login and admin API requires admin', async () => {
+  const anon = client();
+  assert.equal((await anon('POST', '/api/orders', { items: [{ id: 1, qty: 1 }] })).status, 401);
+  assert.equal((await anon('GET', '/api/admin/stats')).status, 401);
+  const u = client();
+  await u('POST', '/api/auth/register', profile());
+  assert.equal((await u('GET', '/api/admin/stats')).status, 403);
+});
+
+test('cross-site writes are rejected', async () => {
+  const c = client();
+  const r = await c('POST', '/api/auth/login', { email: 'admin@test.dz', password: 'secret123' }, { Origin: 'https://evil.example' });
+  assert.equal(r.status, 403);
+});
+
+test('users cannot read other users orders', async () => {
+  const a = client();
+  await a('POST', '/api/auth/register', profile());
+  const o = (await a('POST', '/api/orders', { items: [{ id: 3, qty: 1 }] })).body.order;
+  const b = client();
+  await b('POST', '/api/auth/register', profile());
+  assert.equal((await b('GET', `/api/me/orders/${o.id}`)).status, 404);
+});

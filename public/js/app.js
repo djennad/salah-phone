@@ -201,11 +201,16 @@
 
     const [brands, prods] = await Promise.all([api('GET', '/api/brands'), api('GET', '/api/products?sort=new&limit=10')]);
     const np = $('#newProducts');
-    if (np) np.innerHTML = grid(prods.products, productCard, 'grid-5');
+    if (np) {
+      np.innerHTML = grid(prods.products, productCard, 'grid-5');
+      np.closest('section').hidden = !prods.products.length;
+    }
 
     const chips = $('#brandChips');
     if (!chips) return;
-    const list = brands.brands.filter((b) => b.models.length);
+    // Seules les marques qui ont au moins un modèle avec des pièces sont affichées
+    const list = brands.brands.filter((b) => b.models.some((m) => m.count > 0));
+    chips.closest('section').hidden = !list.length;
     let current = store.get('sp_brand', list[0] && list[0].id);
     if (!list.some((b) => b.id === current) && list[0]) current = list[0].id;
     const draw = () => {

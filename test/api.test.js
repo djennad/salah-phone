@@ -125,3 +125,41 @@ test('users cannot read other users orders', async () => {
   await b('POST', '/api/auth/register', profile());
   assert.equal((await b('GET', `/api/me/orders/${o.id}`)).status, 404);
 });
+
+test('admin can wipe the catalog and it stays empty after restart', async () => {
+  const admin = client();
+  await admin('POST', '/api/auth/login', { email: 'admin@test.dz', password: 'secret123' });
+  assert.equal((await admin('POST', '/api/admin/catalog/wipe', { confirm: 'non' })).status, 400);
+  const u = client();
+  await u('POST', '/api/auth/register', profile());
+  assert.equal((await u('POST', '/api/admin/catalog/wipe', { confirm: 'SUPPRIMER' })).status, 403);
+
+  const ordersBefore = db.prepare('SELECT COUNT(*) AS n FROM order_items').get().n;
+  const r = await admin('POST', '/api/admin/catalog/wipe', { confirm: 'SUPPRIMER' });
+  assert.equal(r.status, 200);
+  assert.ok(r.body.deleted.products > 0);
+  for (const t of ['products', 'categories', 'brands', 'models']) {
+    assert.equal(db.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get().n, 0, t);
+  }
+  // Les commandes passées restent lisibles
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM order_items').get().n, ordersBefore);
+
+  // Simule un redémarrage du serveur : rien ne doit revenir
+  ensureBaseData(db, { adminEmail: 'admin@test.dz', adminPassword: 'secret123' });
+  assert.equal(seedDemo(db), false);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM products').get().n, 0);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM categories').get().n, 0);
+
+  const cfg = await client()('GET', '/api/config');
+  assert.deepEqual(cfg.body.categories, []);
+});
+
+test('existing databases with products are not re-seeded', () => {
+  const fresh = openDb(':memory:');
+  ensureBaseData(fresh, { adminEmail: 'a@b.dz', adminPassword: 'secret123' });
+  assert.equal(seedDemo(fresh), true);
+  // Base créée avant l'ajout du marqueur : le marqueur est posé sans ré-ajouter la démo
+  fresh.prepare("DELETE FROM settings WHERE key = 'demo_seeded'").run();
+  assert.equal(seedDemo(fresh), false);
+  assert.ok(fresh.prepare("SELECT 1 FROM settings WHERE key = 'demo_seeded'").get());
+});

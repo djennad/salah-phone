@@ -1,0 +1,21 @@
+{
+  "name": "salah-phone",
+  "version": "1.0.0",
+  "description": "Salah Phone — boutique en ligne de pièces de rechange pour téléphones (متجر قطع غيار الهواتف)",
+  "main": "server.js",
+  "private": true,
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "start": "node --no-warnings=ExperimentalWarning server.js",
+    "dev": "node --no-warnings=ExperimentalWarning --watch server.js",
+    "reset-db": "node --no-warnings=ExperimentalWarning scripts/reset-db.js",
+    "test": "node --no-warnings=ExperimentalWarning --test test/*.test.js"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "express": "^4.22.3",
+    "multer": "^2.4.0"
+  }
+}

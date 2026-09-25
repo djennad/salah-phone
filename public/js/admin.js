@@ -14,9 +14,13 @@
     name_required: 'Nom obligatoire', price_invalid: 'Prix invalide', exists: 'Existe déjà', brand_invalid: 'Marque invalide',
     image_invalid: 'Image invalide (jpg, png, webp — 4 Mo max)', admin_only: 'Accès réservé aux administrateurs',
     bad_credentials: 'Email ou mot de passe incorrect', too_many: 'Trop de tentatives', stock_invalid: 'Stock invalide',
+    email_invalid: 'Email invalide', phone_invalid: 'Téléphone invalide (ex : 0550123456)',
+    password_short: 'Mot de passe trop court (8 caractères minimum)',
+    cannot_change_self: 'Vous ne pouvez pas retirer vos propres droits administrateur',
   };
   let categories = [];
   let brandsCache = null;
+  let me = null; // administrateur connecté
 
   async function api(method, url, body, isForm) {
     const opts = { method, headers: {}, credentials: 'same-origin' };
@@ -473,9 +477,10 @@
     view.innerHTML = `
       <form class="a-bar" id="uf">
         <input class="input" name="q" placeholder="Nom, email, téléphone, atelier" value="${esc(q)}">
-        <select class="input" name="type"><option value="">Tous</option><option value="client" ${type === 'client' ? 'selected' : ''}>Particuliers</option><option value="repairer" ${type === 'repairer' ? 'selected' : ''}>Réparateurs</option></select>
+        <select class="input" name="type"><option value="">Tous</option><option value="client" ${type === 'client' ? 'selected' : ''}>Particuliers</option><option value="repairer" ${type === 'repairer' ? 'selected' : ''}>Réparateurs</option><option value="admin" ${type === 'admin' ? 'selected' : ''}>Administrateurs</option></select>
         <select class="input" name="pro_status"><option value="">—</option><option value="pending" ${proStatus === 'pending' ? 'selected' : ''}>À valider</option></select>
         <button class="btn btn-navy btn-sm">Filtrer</button>
+        <button type="button" class="btn btn-sm" id="newAdmin">${I.plus} Ajouter un administrateur</button>
       </form>
       <div class="card tbl-wrap"><table class="tbl">
         <thead><tr><th>Client</th><th>Contact</th><th>Wilaya</th><th>Type</th><th>Statut pro</th><th class="num">Cmd</th><th></th></tr></thead>
@@ -489,7 +494,9 @@
           <td class="actions">
             ${u.type === 'repairer' && u.pro_status !== 'approved' ? `<button class="btn btn-sm" data-pro="${u.id}" data-v="approved" style="background:var(--green)">Valider</button>` : ''}
             ${u.type === 'repairer' && u.pro_status !== 'rejected' ? `<button class="btn btn-ghost btn-sm" data-pro="${u.id}" data-v="rejected">${u.pro_status === 'approved' ? 'Retirer' : 'Refuser'}</button>` : ''}
-            ${u.type === 'client' ? `<button class="btn btn-ghost btn-sm" data-mkpro="${u.id}">→ Réparateur</button>` : ''}
+            ${u.type === 'client' && !u.is_admin ? `<button class="btn btn-ghost btn-sm" data-mkpro="${u.id}">→ Réparateur</button>` : ''}
+            ${!u.is_admin ? `<button class="btn btn-ghost btn-sm" data-admin="${u.id}" data-v="1" data-name="${esc(`${u.first_name} ${u.last_name}`)}">Rendre admin</button>` : ''}
+            ${u.is_admin && (!me || u.id !== me.id) ? `<button class="btn btn-ghost btn-sm" style="color:var(--red)" data-admin="${u.id}" data-v="0" data-name="${esc(`${u.first_name} ${u.last_name}`)}">Retirer admin</button>` : ''}
           </td></tr>`).join('') || '<tr><td colspan="7" class="muted">Aucun utilisateur.</td></tr>'}</tbody></table></div>`;
     $('#uf').onsubmit = (e) => { e.preventDefault(); location.hash = `#/users?${new URLSearchParams(new FormData(e.target))}`; };
     $$('[data-pro]').forEach((b) => {
@@ -499,12 +506,55 @@
         await refreshCounts(); route(true);
       };
     });
+    $('#newAdmin').onclick = adminForm;
+    $$('[data-admin]').forEach((b) => {
+      b.onclick = async () => {
+        const give = b.dataset.v === '1';
+        const msg = give
+          ? `Donner à ${b.dataset.name} TOUS les droits administrateur (commandes, produits, clients, paramètres) ?`
+          : `Retirer les droits administrateur de ${b.dataset.name} ?`;
+        if (!confirm(msg)) return;
+        try {
+          await api('PUT', `/api/admin/users/${b.dataset.admin}`, { is_admin: give });
+          toast(give ? 'Administrateur ajouté ✓' : 'Droits administrateur retirés');
+          route(true);
+        } catch (e) { toast(errText(e), true); }
+      };
+    });
     $$('[data-mkpro]').forEach((b) => {
       b.onclick = async () => {
         await api('PUT', `/api/admin/users/${b.dataset.mkpro}`, { type: 'repairer', pro_status: 'approved' });
         toast('Compte passé en réparateur validé'); route(true);
       };
     });
+  }
+
+  function adminForm() {
+    const box = modal(`<h2>Ajouter un administrateur</h2>
+      <p class="muted" style="margin-top:0">Il aura les mêmes droits que vous : commandes, produits, clients et paramètres.
+        Si l'email correspond déjà à un compte du site, ce compte devient administrateur (son mot de passe ne change pas).</p>
+      <form class="form" id="af" novalidate>
+        <div class="field"><label>Email</label><input class="input" name="email" type="email" dir="ltr" required></div>
+        <div class="grid-2">
+          <div class="field"><label>Prénom</label><input class="input" name="first_name"></div>
+          <div class="field"><label>Nom</label><input class="input" name="last_name"></div>
+          <div class="field"><label>Téléphone</label><input class="input" name="phone" type="tel" dir="ltr" placeholder="05XXXXXXXX"></div>
+          <div class="field"><label>Mot de passe <small>(8 caractères min.)</small></label><input class="input" name="password" type="password" autocomplete="new-password"></div>
+        </div>
+        <div id="aErr"></div>
+        <div class="modal-actions"><button type="button" class="btn btn-ghost" data-close>Annuler</button><button class="btn btn-navy">Ajouter</button></div>
+      </form>`);
+    $('[data-close]', box).onclick = closeModal;
+    $('#af', box).onsubmit = async (e) => {
+      e.preventDefault();
+      try {
+        const r = await api('POST', '/api/admin/admins', Object.fromEntries(new FormData(e.target)));
+        closeModal();
+        toast(r.created ? 'Compte administrateur créé ✓' : 'Compte existant devenu administrateur ✓');
+        if (location.hash === '#/users?type=admin') route(true);
+        else location.hash = '#/users?type=admin';
+      } catch (err) { $('#aErr', box).innerHTML = `<p class="form-error">${esc(errText(err))}</p>`; }
+    };
   }
 
   // ------------------------------------------------------------ requests
@@ -668,6 +718,7 @@
     $('#sideBtn').onclick = () => $('#side').classList.toggle('open');
     const { user } = await api('GET', '/api/me');
     if (!user || !user.is_admin) return pageLogin(user ? 'Ce compte n\'est pas administrateur.' : '');
+    me = user;
     categories = (await api('GET', '/api/admin/categories')).categories;
     await refreshCounts();
     window.addEventListener('hashchange', () => route());

@@ -181,3 +181,37 @@ test('pages and scripts are revalidated so updates show up immediately', async (
     }
   }
 });
+
+test('admins can add other admins with the same rights, and remove them', async () => {
+  const admin = client();
+  await admin('POST', '/api/auth/login', { email: 'admin@test.dz', password: 'secret123' });
+
+  // Création d'un nouveau compte administrateur
+  assert.equal((await admin('POST', '/api/admin/admins', { email: 'x', password: '12345678' })).body.error, 'email_invalid');
+  assert.equal((await admin('POST', '/api/admin/admins', { email: 'b@test.dz', first_name: 'B', last_name: 'C', phone: '0550111222', password: 'court' })).body.error, 'password_short');
+  const created = await admin('POST', '/api/admin/admins', { email: 'Second@Test.dz', first_name: 'Karim', last_name: 'B', phone: '0550111222', password: 'motdepasse2' });
+  assert.equal(created.status, 201);
+  const second = client();
+  assert.equal((await second('POST', '/api/auth/login', { email: 'second@test.dz', password: 'motdepasse2' })).status, 200);
+  assert.equal((await second('GET', '/api/admin/stats')).status, 200);
+  // Même droits : il peut à son tour gérer les utilisateurs
+  assert.equal((await second('GET', '/api/admin/users?type=admin')).body.users.length >= 2, true);
+
+  // Promotion d'un compte client existant (mot de passe inchangé)
+  const cust = client();
+  const reg = await cust('POST', '/api/auth/register', profile({ email: 'client-admin@test.dz' }));
+  assert.equal((await cust('GET', '/api/admin/stats')).status, 403);
+  const promoted = await second('POST', '/api/admin/admins', { email: 'client-admin@test.dz' });
+  assert.equal(promoted.body.created, false);
+  assert.equal((await cust('GET', '/api/admin/stats')).status, 200);
+
+  // Retrait des droits : effet immédiat
+  assert.equal((await admin('PUT', `/api/admin/users/${reg.body.user.id}`, { is_admin: false })).status, 200);
+  assert.equal((await cust('GET', '/api/admin/stats')).status, 403);
+
+  // On ne peut pas se retirer ses propres droits
+  const meId = (await admin('GET', '/api/me')).body.user.id;
+  const self = await admin('PUT', `/api/admin/users/${meId}`, { is_admin: false });
+  assert.equal(self.body.error, 'cannot_change_self');
+  assert.equal((await admin('GET', '/api/admin/stats')).status, 200);
+});

@@ -215,3 +215,37 @@ test('admins can add other admins with the same rights, and remove them', async 
   assert.equal(self.body.error, 'cannot_change_self');
   assert.equal((await admin('GET', '/api/admin/stats')).status, 200);
 });
+
+test('admin can import the base list of categories, brands and models (no products)', async () => {
+  const { STARTER_CATEGORIES, STARTER_BRANDS } = require('../lib/starter-catalog');
+  const fresh = openDb(':memory:');
+  ensureBaseData(fresh, { adminEmail: 'a@b.dz', adminPassword: 'secret123' });
+  fresh.exec('DELETE FROM categories');
+  // Un élément existant, modifié par le propriétaire, doit rester intact
+  fresh.prepare("INSERT INTO categories (slug, name_fr, name_ar, icon, sort) VALUES ('afficheur', 'Afficheur', 'شاشات', 'screen', 99)").run();
+  fresh.prepare("INSERT INTO brands (name, sort) VALUES ('samsung', 5)").run();
+
+  const app = createApp(fresh, { uploadDir: tmp });
+  const srv = await new Promise((r) => { const s = app.listen(0, () => r(s)); });
+  const url = `http://127.0.0.1:${srv.address().port}`;
+  try {
+    const login = await fetch(`${url}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'a@b.dz', password: 'secret123' }) });
+    const cookie = login.headers.get('set-cookie').split(';')[0];
+    const imp = () => fetch(`${url}/api/admin/catalog/starter`, { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: cookie }, body: '{}' }).then((r) => r.json());
+
+    const nbModels = Object.values(STARTER_BRANDS).flat().length;
+    const first = await imp();
+    assert.deepEqual(first.added, { categories: STARTER_CATEGORIES.length - 1, brands: Object.keys(STARTER_BRANDS).length - 1, models: nbModels });
+    // Deuxième import : rien n'est dupliqué
+    assert.deepEqual((await imp()).added, { categories: 0, brands: 0, models: 0 });
+
+    assert.equal(fresh.prepare("SELECT name_ar FROM categories WHERE slug = 'afficheur'").get().name_ar, 'شاشات');
+    assert.equal(fresh.prepare('SELECT COUNT(*) AS n FROM products').get().n, 0);
+    const s = await fetch(`${url}/api/suggest?q=redmi%209a`).then((r) => r.json());
+    assert.equal(s.models[0].slug, 'redmi-9a');
+    const samsung = fresh.prepare("SELECT COUNT(*) AS n FROM models m JOIN brands b ON b.id = m.brand_id WHERE b.name = 'samsung'").get().n;
+    assert.equal(samsung, STARTER_BRANDS.Samsung.length);
+  } finally {
+    srv.close();
+  }
+});

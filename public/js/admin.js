@@ -351,6 +351,7 @@
     brandsCache = (await api('GET', '/api/admin/brands')).brands;
     view.innerHTML = `
       <div class="a-bar"><p class="muted" style="margin:0;flex:1">Cliquez sur un modèle pour le modifier. Les clients cherchent les pièces par nom de modèle.</p>
+        <button class="btn btn-ghost btn-sm" id="starterBtn">Importer la liste de base</button>
         <button class="btn btn-sm" id="newBrand">${I.plus} Nouvelle marque</button></div>
       ${brandsCache.map((b) => `
         <div class="card brand-block">
@@ -361,6 +362,7 @@
           <div class="models">${b.models.map((m) => `<span class="chip" data-editm="${m.id}">${esc(m.name)} <small>(${m.count})</small></span>`).join('') || '<span class="muted small">Aucun modèle</span>'}</div>
         </div>`).join('')}`;
     $('#newBrand').onclick = () => brandForm(null);
+    $('#starterBtn').onclick = importStarter;
     $$('[data-editb]').forEach((b) => { b.onclick = () => brandForm(brandsCache.find((x) => x.id === Number(b.dataset.editb))); });
     $$('[data-delb]').forEach((b) => {
       b.onclick = async () => {
@@ -434,6 +436,17 @@
     };
   }
 
+  async function importStarter() {
+    if (!confirm('Ajouter la liste de base (11 catégories, 12 marques et leurs modèles courants) ?\nRien n\'est supprimé ni modifié : seuls les éléments manquants sont ajoutés. Aucun produit n\'est ajouté.')) return;
+    try {
+      const { added } = await api('POST', '/api/admin/catalog/starter', {});
+      categories = (await api('GET', '/api/admin/categories')).categories;
+      brandsCache = null;
+      toast(`Ajouté : ${added.categories} catégories, ${added.brands} marques, ${added.models} modèles`);
+      route(true);
+    } catch (e) { toast(errText(e), true); }
+  }
+
   // ------------------------------------------------------------ categories
   async function pageCategories() {
     categories = (await api('GET', '/api/admin/categories')).categories;
@@ -442,7 +455,9 @@
       <div class="card tbl-wrap"><table class="tbl">
         <thead><tr><th>Icône</th><th>Nom (FR)</th><th>Nom (AR)</th><th>Ordre</th><th></th></tr></thead>
         <tbody>${categories.map((c) => catRow(c, icons)).join('')}${catRow({ id: 0, name_fr: '', name_ar: '', icon: 'box', sort: 50 }, icons)}</tbody></table></div>
-      <p class="small muted">La dernière ligne permet d'ajouter une catégorie.</p>`;
+      <div class="a-bar" style="margin-top:10px"><p class="small muted" style="margin:0;flex:1">La dernière ligne permet d'ajouter une catégorie.</p>
+        <button class="btn btn-ghost btn-sm" id="starterBtn">Importer la liste de base</button></div>`;
+    $('#starterBtn').onclick = importStarter;
     $$('[data-savec]').forEach((b) => {
       b.onclick = async () => {
         const tr = b.closest('tr');
